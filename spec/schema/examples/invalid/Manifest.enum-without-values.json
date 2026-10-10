@@ -1,0 +1,2 @@
+{ "protocol": "1", "name": "x", "types": [ { "name": "T", "identity": "id", "lookups": [],
+  "properties": { "id": { "type": "integer" }, "s": { "type": "enum" } } } ] }

@@ -633,8 +633,9 @@ The batch contract, which every publisher must keep:
 
 - **All keys in one call**, up to the lookup's `maxKeys`. The world splits larger batches; the
   publisher never receives more than it declared.
-- **Every record carries the lookup property** with a value equal to one of the requested keys, in
-  canonical form. That is how the world attaches each record to its anchor; a record without it is
+- **Every record carries the lookup property**, with a value whose canonical string form (§2.1)
+  equals one of the requested keys. The property keeps its declared JSON form, so an integer
+  `ownerId` is `6` in the record and `"6"` among the keys. That is how the world attaches each record to its anchor; a record without it is
   dropped and reported.
 - **Every requested key is accounted for**: it has at least one record, or it is in `missing` (no
   record matches the key *and* the `where`), or it is in `failed` (the publisher could not answer for

@@ -1,0 +1,9 @@
+{
+  "records": [
+    { "id": 1, "name": "Leo", "birthDate": "2010-09-07", "type": "cat", "ownerId": 1 },
+    { "id": 7, "name": "Samantha", "birthDate": "2012-09-04", "type": "cat", "ownerId": 6 },
+    { "id": 8, "name": "Max", "birthDate": "2012-09-04", "type": "cat", "ownerId": 6 }
+  ],
+  "missing": ["99"],
+  "applied": true
+}

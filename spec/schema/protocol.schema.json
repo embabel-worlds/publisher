@@ -1,0 +1,474 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/embabel-worlds/publisher/spec/schema/protocol.schema.json",
+  "title": "Realm Publishing Protocol, version 1",
+  "description": "Every message of the protocol, one $defs entry each. Unknown properties are allowed everywhere: evolution within a protocol version is additive and receivers ignore what they do not understand (PROTOCOL.md §2).",
+  "$defs": {
+
+    "Name": {
+      "description": "A type, property, verb, event or realm name.",
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]{0,127}$"
+    },
+    "PropertyPath": {
+      "description": "A property name, or a dotted path into a value (§3.5).",
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]{0,127}(\\.[A-Za-z][A-Za-z0-9_]{0,127}){0,3}$"
+    },
+    "Key": {
+      "description": "A key in the canonical string form of its declared type (§2.1).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "ScalarValue": {
+      "description": "A scalar in its wire form (§2.1): decimals, dates, datetimes and durations are strings; integers beyond ±2^53 are strings.",
+      "type": ["string", "number", "boolean"]
+    },
+    "Value": {
+      "anyOf": [
+        { "$ref": "#/$defs/ScalarValue" },
+        { "type": "null" },
+        { "type": "array" },
+        { "type": "object" }
+      ]
+    },
+
+    "ScalarType": {
+      "enum": ["string", "boolean", "integer", "decimal", "date", "datetime", "duration", "enum"]
+    },
+    "Property": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["string", "boolean", "integer", "decimal", "date", "datetime", "duration", "enum", "list", "object"] },
+        "description": { "type": "string" },
+        "values": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "item": {
+          "description": "The element type of a list: a scalar type, or a part (§3.5).",
+          "oneOf": [
+            { "type": "object", "required": ["type"], "properties": { "type": { "$ref": "#/$defs/ScalarType" } } },
+            { "type": "object", "required": ["part"], "properties": { "part": { "$ref": "#/$defs/Name" } } }
+          ]
+        },
+        "properties": { "type": "object", "additionalProperties": { "$ref": "#/$defs/Property" } },
+        "spine": { "type": "string", "minLength": 1 },
+        "references": { "$ref": "#/$defs/Reference" }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "enum" } } }, "then": { "required": ["values"] } },
+        { "if": { "properties": { "type": { "const": "list" } } }, "then": { "required": ["item"] } },
+        { "if": { "properties": { "type": { "const": "object" } } }, "then": { "required": ["properties"] } }
+      ]
+    },
+    "Reference": {
+      "type": "object",
+      "required": ["type", "relationship"],
+      "properties": {
+        "type": { "$ref": "#/$defs/Name" },
+        "realm": { "$ref": "#/$defs/Name" },
+        "relationship": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$" },
+        "direction": { "enum": ["in", "out"], "default": "out" }
+      }
+    },
+    "Lookup": {
+      "type": "object",
+      "required": ["by", "maxKeys"],
+      "properties": {
+        "by": { "$ref": "#/$defs/Name" },
+        "maxKeys": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "limitPerKey": { "type": "boolean", "default": false }
+      }
+    },
+    "Operator": {
+      "enum": ["eq", "ne", "in", "notIn", "gt", "gte", "lt", "lte", "between", "isNull", "isNotNull",
+               "prefix", "contains", "ieq", "iprefix", "icontains", "has", "hasAny"]
+    },
+    "FilterCapability": {
+      "type": "object",
+      "properties": {
+        "properties": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/PropertyPath" },
+          "additionalProperties": { "type": "array", "items": { "$ref": "#/$defs/Operator" }, "uniqueItems": true }
+        },
+        "logic": { "type": "array", "items": { "enum": ["and", "or", "not"] }, "uniqueItems": true },
+        "exists": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "QueryCapability": {
+      "type": "object",
+      "properties": {
+        "maxPageSize": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "total": { "type": "boolean", "default": false },
+        "search": { "type": "boolean", "default": false }
+      }
+    },
+    "AggregateCapability": {
+      "type": "object",
+      "properties": {
+        "groupBy": { "type": "array", "items": { "$ref": "#/$defs/PropertyPath" } },
+        "measures": {
+          "type": "object",
+          "properties": {
+            "count": { "type": "boolean" },
+            "countDistinct": { "type": "array", "items": { "$ref": "#/$defs/PropertyPath" } },
+            "sum": { "type": "array", "items": { "$ref": "#/$defs/PropertyPath" } },
+            "avg": { "type": "array", "items": { "$ref": "#/$defs/PropertyPath" } },
+            "min": { "type": "array", "items": { "$ref": "#/$defs/PropertyPath" } },
+            "max": { "type": "array", "items": { "$ref": "#/$defs/PropertyPath" } }
+          }
+        }
+      }
+    },
+    "Cache": {
+      "type": "object",
+      "properties": {
+        "scope": { "enum": ["shared", "user"], "default": "user" },
+        "ttlSeconds": { "type": "integer", "minimum": 0, "default": 0 },
+        "negativeTtlSeconds": { "type": "integer", "minimum": 0, "default": 0 },
+        "immutable": { "type": "boolean", "default": false }
+      }
+    },
+    "Cost": {
+      "type": "object",
+      "properties": {
+        "maxRequestsPerSecond": { "type": "number", "exclusiveMinimum": 0 },
+        "maxConcurrency": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "Type": {
+      "type": "object",
+      "required": ["name", "identity", "properties", "lookups"],
+      "properties": {
+        "name": { "$ref": "#/$defs/Name" },
+        "description": { "type": "string" },
+        "identity": { "$ref": "#/$defs/Name" },
+        "properties": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/Name" },
+          "additionalProperties": { "$ref": "#/$defs/Property" }
+        },
+        "partOf": {
+          "type": "object",
+          "required": ["type", "property", "relationship", "ownerKey"],
+          "properties": {
+            "type": { "$ref": "#/$defs/Name" },
+            "property": { "$ref": "#/$defs/Name" },
+            "relationship": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$" },
+            "ownerKey": { "$ref": "#/$defs/Name" }
+          }
+        },
+        "lookups": { "type": "array", "items": { "$ref": "#/$defs/Lookup" } },
+        "filter": { "$ref": "#/$defs/FilterCapability" },
+        "sort": { "type": "array", "items": { "$ref": "#/$defs/PropertyPath" }, "uniqueItems": true },
+        "project": { "type": "boolean", "default": false },
+        "query": { "$ref": "#/$defs/QueryCapability" },
+        "aggregate": { "$ref": "#/$defs/AggregateCapability" },
+        "cache": { "$ref": "#/$defs/Cache" },
+        "cost": { "$ref": "#/$defs/Cost" }
+      }
+    },
+
+    "Approval": {
+      "type": "object",
+      "required": ["required"],
+      "properties": {
+        "required": { "enum": ["never", "always", "when", "decided"] },
+        "when": { "$ref": "#/$defs/Where" },
+        "reason": { "type": "string" },
+        "selfApproval": { "type": "boolean", "default": false }
+      },
+      "if": { "properties": { "required": { "const": "when" } } },
+      "then": { "required": ["when"] }
+    },
+    "Verb": {
+      "type": "object",
+      "required": ["name", "description", "input", "effect"],
+      "properties": {
+        "name": { "$ref": "#/$defs/Name" },
+        "description": { "type": "string", "minLength": 1 },
+        "subject": { "$ref": "#/$defs/Name" },
+        "input": { "type": "object", "description": "JSON Schema 2020-12 for the verb's input." },
+        "output": { "type": "object", "description": "JSON Schema 2020-12 for the verb's output." },
+        "effect": { "enum": ["read", "write", "external"] },
+        "idempotent": { "type": "boolean", "default": false },
+        "dryRun": { "type": "boolean", "default": false },
+        "approval": { "$ref": "#/$defs/Approval" }
+      }
+    },
+
+    "Manifest": {
+      "type": "object",
+      "required": ["protocol", "name", "types"],
+      "properties": {
+        "protocol": { "const": "1" },
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "version": { "type": "string" },
+        "author": { "type": "string" },
+        "url": { "type": "string", "format": "uri" },
+        "icon": { "type": "string" },
+        "category": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "maturity": { "enum": ["experimental", "beta", "stable", "deprecated"] },
+        "about": { "type": "string" },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "schemes": { "type": "array", "items": { "enum": ["bearer", "basic", "mtls", "none"] }, "minItems": 1 },
+            "actingUser": { "enum": ["required", "optional", "ignored"] }
+          }
+        },
+        "types": { "type": "array", "items": { "$ref": "#/$defs/Type" } },
+        "verbs": { "type": "array", "items": { "$ref": "#/$defs/Verb" } },
+        "changes": { "type": "object", "properties": { "supported": { "type": "boolean" } } },
+        "events": { "type": "array", "items": { "type": "object", "required": ["name"] } },
+        "eventRetention": { "type": "string" },
+        "delivery": { "type": "object", "properties": { "push": { "type": "boolean" } } },
+        "skills": { "type": "array", "items": { "type": "object", "required": ["name", "description"] } },
+        "agents": { "type": "array", "items": { "type": "object", "required": ["name", "job"] } }
+      }
+    },
+    "Index": {
+      "type": "object",
+      "required": ["protocol", "realms"],
+      "not": { "required": ["types"] },
+      "properties": {
+        "protocol": { "const": "1" },
+        "application": { "type": "string" },
+        "realms": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "url"],
+            "properties": {
+              "name": { "type": "string" },
+              "url": { "type": "string", "format": "uri" },
+              "title": { "type": "string" },
+              "description": { "type": "string" },
+              "icon": { "type": "string" },
+              "category": { "type": "string" },
+              "maturity": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "Comparison": {
+      "type": "object",
+      "required": ["property", "op"],
+      "properties": {
+        "property": { "$ref": "#/$defs/PropertyPath" },
+        "op": { "$ref": "#/$defs/Operator" },
+        "value": { "$ref": "#/$defs/Value" }
+      },
+      "allOf": [
+        { "if": { "properties": { "op": { "enum": ["isNull", "isNotNull"] } } },
+          "then": { "not": { "required": ["value"] } },
+          "else": { "required": ["value"] } },
+        { "if": { "properties": { "op": { "enum": ["in", "notIn", "hasAny"] } } },
+          "then": { "properties": { "value": { "type": "array", "maxItems": 1000 } } } },
+        { "if": { "properties": { "op": { "const": "between" } } },
+          "then": { "properties": { "value": { "type": "array", "minItems": 2, "maxItems": 2 } } } }
+      ]
+    },
+    "Where": {
+      "description": "An expression tree (§4.1). Depth at most 8 and at most 256 nodes; the schema cannot count, so receivers check those limits.",
+      "oneOf": [
+        { "$ref": "#/$defs/Comparison" },
+        { "type": "object", "required": ["and"], "properties": { "and": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/Where" } } } },
+        { "type": "object", "required": ["or"], "properties": { "or": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/Where" } } } },
+        { "type": "object", "required": ["not"], "properties": { "not": { "$ref": "#/$defs/Where" } } },
+        { "type": "object", "required": ["exists"], "properties": { "exists": {
+            "type": "object",
+            "properties": {
+              "type": { "$ref": "#/$defs/Name" },
+              "via": { "$ref": "#/$defs/Name" },
+              "part": { "$ref": "#/$defs/Name" },
+              "where": { "$ref": "#/$defs/Where" }
+            },
+            "oneOf": [ { "required": ["type", "via"] }, { "required": ["part"] } ] } } }
+      ]
+    },
+    "SortKey": {
+      "type": "object",
+      "required": ["property"],
+      "properties": {
+        "property": { "$ref": "#/$defs/PropertyPath" },
+        "direction": { "enum": ["asc", "desc"], "default": "asc" }
+      }
+    },
+    "Record": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/Name" }
+    },
+    "Truncated": {
+      "type": "object",
+      "required": ["reason"],
+      "properties": { "reason": { "type": "string" } }
+    },
+
+    "FetchRequest": {
+      "type": "object",
+      "required": ["type", "by", "keys"],
+      "properties": {
+        "type": { "$ref": "#/$defs/Name" },
+        "by": { "$ref": "#/$defs/Name" },
+        "keys": { "type": "array", "minItems": 1, "maxItems": 1000, "items": { "$ref": "#/$defs/Key" } },
+        "where": { "$ref": "#/$defs/Where" },
+        "fields": { "type": "array", "items": { "$ref": "#/$defs/PropertyPath" } },
+        "sort": { "type": "array", "items": { "$ref": "#/$defs/SortKey" } },
+        "limitPerKey": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "FetchResponse": {
+      "type": "object",
+      "required": ["records"],
+      "properties": {
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Record" } },
+        "missing": { "type": "array", "items": { "$ref": "#/$defs/Key" } },
+        "failed": { "type": "array", "items": { "$ref": "#/$defs/Key" } },
+        "applied": { "type": "boolean" },
+        "sorted": { "type": "boolean" },
+        "truncated": { "$ref": "#/$defs/Truncated" }
+      }
+    },
+    "QueryRequest": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "$ref": "#/$defs/Name" },
+        "where": { "$ref": "#/$defs/Where" },
+        "search": { "type": "string" },
+        "fields": { "type": "array", "items": { "$ref": "#/$defs/PropertyPath" } },
+        "sort": { "type": "array", "items": { "$ref": "#/$defs/SortKey" } },
+        "limit": { "type": "integer", "minimum": 1 },
+        "pageSize": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "cursor": { "type": ["string", "null"], "maxLength": 2048 }
+      }
+    },
+    "QueryResponse": {
+      "type": "object",
+      "required": ["records", "next"],
+      "properties": {
+        "records": { "type": "array", "items": { "$ref": "#/$defs/Record" } },
+        "applied": { "type": "boolean" },
+        "sorted": { "type": "boolean" },
+        "next": { "type": ["string", "null"], "minLength": 1, "maxLength": 2048 },
+        "total": { "type": "integer", "minimum": 0 },
+        "truncated": { "$ref": "#/$defs/Truncated" }
+      }
+    },
+    "AggregateRequest": {
+      "type": "object",
+      "required": ["type", "measures"],
+      "properties": {
+        "type": { "$ref": "#/$defs/Name" },
+        "where": { "$ref": "#/$defs/Where" },
+        "by": { "$ref": "#/$defs/Name" },
+        "keys": { "type": "array", "minItems": 1, "maxItems": 1000, "items": { "$ref": "#/$defs/Key" } },
+        "groupBy": { "type": "array", "items": { "$ref": "#/$defs/PropertyPath" } },
+        "measures": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["fn", "as"],
+            "properties": {
+              "fn": { "enum": ["count", "countDistinct", "sum", "avg", "min", "max"] },
+              "property": { "$ref": "#/$defs/PropertyPath" },
+              "as": { "$ref": "#/$defs/Name" }
+            }
+          }
+        }
+      },
+      "dependentRequired": { "by": ["keys"], "keys": ["by"] }
+    },
+    "AggregateResponse": {
+      "type": "object",
+      "required": ["groups"],
+      "properties": {
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key", "values"],
+            "properties": { "key": { "type": "object" }, "values": { "type": "object" } }
+          }
+        },
+        "missing": { "type": "array", "items": { "$ref": "#/$defs/Key" } },
+        "applied": { "type": "boolean" }
+      }
+    },
+    "ChangesResponse": {
+      "type": "object",
+      "required": ["changes", "next"],
+      "properties": {
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "key", "op"],
+            "properties": {
+              "type": { "$ref": "#/$defs/Name" },
+              "key": { "$ref": "#/$defs/Key" },
+              "op": { "enum": ["upsert", "delete"] },
+              "at": { "type": "string" }
+            }
+          }
+        },
+        "next": { "type": "string", "minLength": 1 }
+      }
+    },
+    "DryRunResult": {
+      "type": "object",
+      "required": ["dryRun"],
+      "properties": {
+        "dryRun": { "const": true },
+        "records": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "key", "op"],
+            "properties": {
+              "type": { "$ref": "#/$defs/Name" },
+              "key": { "$ref": "#/$defs/Key" },
+              "op": { "enum": ["create", "update", "delete"] },
+              "changes": { "type": "object" }
+            }
+          }
+        },
+        "external": {
+          "type": "array",
+          "items": { "type": "object", "required": ["kind", "description"] }
+        },
+        "approval": {
+          "type": "object",
+          "required": ["required"],
+          "properties": { "required": { "type": "boolean" }, "reason": { "type": "string" } }
+        }
+      }
+    },
+    "Problem": {
+      "description": "RFC 9457 problem details with the protocol's error code (§4.6).",
+      "type": "object",
+      "required": ["code"],
+      "properties": {
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "integer" },
+        "detail": { "type": "string" },
+        "code": {
+          "enum": ["UNAUTHENTICATED", "FORBIDDEN", "ACTING_USER_REQUIRED", "UNKNOWN_TYPE", "UNSUPPORTED",
+                   "KEY_BOUND", "EXPRESSION_BOUND", "APPROVAL_REQUIRED", "APPROVER_NOT_AUTHORIZED",
+                   "RATE_LIMITED", "UNAVAILABLE", "PUBLISHER_DISABLED", "UNREACHABLE"]
+        },
+        "reason": { "type": "string" }
+      }
+    }
+  }
+}

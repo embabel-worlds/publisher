@@ -1,0 +1,97 @@
+{
+  "protocol": "1",
+  "name": "petclinic",
+  "title": "Pet Clinic",
+  "description": "Owners, their pets, the pets' visits, and the clinic's vets.",
+  "version": "4.0.0",
+  "maturity": "experimental",
+  "auth": { "schemes": ["bearer"], "actingUser": "ignored" },
+  "types": [
+    {
+      "name": "Owner",
+      "description": "A pet owner registered with the clinic.",
+      "identity": "id",
+      "properties": {
+        "id": { "type": "integer" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "address": { "type": "string" },
+        "city": { "type": "string" },
+        "telephone": { "type": "string" }
+      },
+      "lookups": [{ "by": "id", "maxKeys": 500 }],
+      "filter": {
+        "properties": {
+          "lastName": ["eq", "in", "prefix", "ieq", "iprefix"],
+          "city": ["eq", "in"]
+        },
+        "logic": ["and"]
+      },
+      "sort": ["lastName", "city"],
+      "query": { "maxPageSize": 200, "total": true },
+      "cache": { "scope": "shared", "ttlSeconds": 60, "negativeTtlSeconds": 300 }
+    },
+    {
+      "name": "Pet",
+      "identity": "id",
+      "properties": {
+        "id": { "type": "integer" },
+        "name": { "type": "string" },
+        "birthDate": { "type": "date" },
+        "type": { "type": "string", "description": "cat, dog, lizard, snake, bird or hamster" },
+        "ownerId": { "type": "integer", "references": { "type": "Owner", "relationship": "OWNS", "direction": "in" } }
+      },
+      "lookups": [{ "by": "id", "maxKeys": 500 }, { "by": "ownerId", "maxKeys": 200 }],
+      "filter": { "properties": { "type": ["eq", "in"], "birthDate": ["gt", "gte", "lt", "lte", "between"] }, "logic": ["and"] },
+      "cache": { "scope": "shared", "ttlSeconds": 60 }
+    },
+    {
+      "name": "Visit",
+      "identity": "id",
+      "properties": {
+        "id": { "type": "integer" },
+        "date": { "type": "date" },
+        "description": { "type": "string" },
+        "petId": { "type": "integer", "references": { "type": "Pet", "relationship": "HAD_VISIT", "direction": "in" } }
+      },
+      "lookups": [{ "by": "id", "maxKeys": 500 }, { "by": "petId", "maxKeys": 200 }],
+      "filter": { "properties": { "date": ["gt", "gte", "lt", "lte", "between"] }, "logic": ["and"] },
+      "sort": ["date"]
+    },
+    {
+      "name": "Vet",
+      "identity": "id",
+      "properties": {
+        "id": { "type": "integer" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "specialties": { "type": "list", "item": { "type": "string" } }
+      },
+      "lookups": [{ "by": "id", "maxKeys": 100 }],
+      "query": { "maxPageSize": 100, "total": true },
+      "cache": { "scope": "shared", "ttlSeconds": 3600 }
+    }
+  ],
+  "verbs": [
+    {
+      "name": "addVisit",
+      "description": "Record a visit for a pet.",
+      "subject": "Pet",
+      "input": { "type": "object", "required": ["petId", "date", "description"],
+                 "properties": { "petId": { "type": "integer" }, "date": { "type": "string", "format": "date" }, "description": { "type": "string" } } },
+      "output": { "type": "object", "properties": { "visitId": { "type": "integer" } } },
+      "effect": "write",
+      "approval": { "required": "never" }
+    },
+    {
+      "name": "updateOwnerContact",
+      "description": "Change an owner's address, city or telephone.",
+      "subject": "Owner",
+      "input": { "type": "object", "required": ["ownerId"],
+                 "properties": { "ownerId": { "type": "integer" }, "address": { "type": "string" }, "city": { "type": "string" }, "telephone": { "type": "string" } } },
+      "effect": "write",
+      "idempotent": true,
+      "approval": { "required": "always", "reason": "Contact details are changed only with a second person's approval." }
+    }
+  ]
+}
