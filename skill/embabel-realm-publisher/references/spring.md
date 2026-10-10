@@ -13,12 +13,13 @@ usually `@Transactional`. Security is Spring Security if `spring-boot-starter-se
 
 ```xml
 <dependency>
-  <groupId>com.embabel.realm</groupId>
-  <artifactId>embabel-realm-starter</artifactId>
+  <groupId>com.embabel.publisher</groupId>
+  <artifactId>embabel-publisher-spring-boot-starter</artifactId>
 </dependency>
 ```
 
-Requires Java 17 and Spring Boot 3.2 or later. Configure under `embabel.realm`: `name`, `title`,
+That is the Spring Boot 4 starter. On Spring Boot 3.2 or later, use
+`embabel-publisher-spring-boot3-starter` instead; the application code is the same. Requires Java 17. Configure under `embabel.realm`: `name`, `title`,
 `description`, `path`, `auth.schemes` and `acting-user.mode` with `jwks-uri`. Keep secrets in the
 application's existing secret configuration. `embabel.realm.enabled: false`, or
 `EMBABEL_REALM_ENABLED=false`, turns all publication off.

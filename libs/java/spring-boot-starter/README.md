@@ -10,11 +10,19 @@ to see, and gets a realm. The world side is the application's URL. Everything el
 explains how the developer's choices become the manifest, and how the starter pushes down as much of
 each query as their methods can take.
 
-**The starter is written in Java.** Its users are Java developers, so its stack traces, sources,
-generics and annotations are what they already read, and it adds no Kotlin runtime to their
-classpath. The baseline is Java 17 and Spring Boot 3.2, the first Boot release whose Spring Data has
-both the scroll API and `Limit`. Everything Embabel-specific that it can use (§8) is an optional
-dependency.
+**The starter is written in Java**, so its stack traces, sources, generics and annotations are what
+its users already read, and it adds no Kotlin runtime to their classpath. The bytecode targets Java 17.
+Both Spring Boot lines are supported, from three published artifacts:
+
+| Artifact | For |
+|---|---|
+| `embabel-publisher-spring-boot-starter` | Spring Boot 4 (Jackson 3) |
+| `embabel-publisher-spring-boot3-starter` | Spring Boot 3.2 and later (Jackson 2). 3.2 is the first Boot 3 release whose Spring Data has both the scroll API and `Limit`. |
+| `embabel-publisher-core` | Both starters depend on it. It holds the framework-free protocol core, which a Quarkus or Micronaut integration can also build on, and the Spring code the two starters share. Spring is an optional dependency, and the core has no Jackson dependency. |
+
+An application declares only the starter for its Boot line, and its own code is identical on both:
+the annotations live in `core`, and descriptions come from `jackson-annotations`, whose package Jackson
+3 kept. Everything Embabel-specific that the starter can use (§8) is an optional dependency.
 
 ---
 
@@ -44,8 +52,8 @@ interface follow the Embabel agent framework, so a developer who knows one reads
 
 ```xml
 <dependency>
-  <groupId>com.embabel.realm</groupId>
-  <artifactId>embabel-realm-starter</artifactId>
+  <groupId>com.embabel.publisher</groupId>
+  <artifactId>embabel-publisher-spring-boot-starter</artifactId>   <!-- or embabel-publisher-spring-boot3-starter -->
 </dependency>
 ```
 
@@ -677,7 +685,7 @@ aggregates alike.
 
 There is no `Embabel` holder class. In Java such a class is not a namespace. Two Embabel libraries
 each defining one would collide in any file that uses both, and a static import removes the prefix
-anyway. The `com.embabel.realm` package is the namespace. `EmbabelRealm` keeps the prefix because it
+anyway. The `com.embabel.publisher` package is the namespace. `EmbabelRealm` keeps the prefix because it
 is the one type that stands for the realm itself, as `@EmbabelComponent` stands for a component.
 
 ### 8.2 One description for every consumer
@@ -769,7 +777,7 @@ version the starter implements, plus `references/spring.md`. One command install
 agent skills directory:
 
 ```shell
-mvn com.embabel.realm:embabel-realm-maven-plugin:install-skill        # or ./gradlew embabelInstallSkill
+mvn com.embabel.publisher:embabel-publisher-maven-plugin:install-skill        # or ./gradlew embabelInstallSkill
 ```
 
 A developer can then ask their coding agent to "expose this application to Embabel worlds", and the
