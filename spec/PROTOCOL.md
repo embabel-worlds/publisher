@@ -1163,10 +1163,13 @@ existing REST and GraphQL doors. That is a client of the world, not this protoco
 
 This is what makes the world side one URL. Given `https://billing.example.com/embabel`, a world:
 
-1. `GET`s the URL. If it is an index (§3.6), it lets the owner choose realms and installs each one as
-   below. It refuses an unsupported `protocol` and says which version it speaks.
-2. Asks the owner for a credential if `auth.schemes` needs one, and keeps it in its own secret store.
-   The credential never appears in anything the world shows or exports.
+1. Takes the credential together with the URL, when the owner has one. A publisher usually protects
+   its manifest as well as its data, so the credential has to come first. The world keeps it in its own
+   secret store, and it never appears in anything the world shows or exports.
+2. `GET`s the URL, presenting the credential. If the answer is `401`, the world asks the owner for a
+   credential and tries again. It never guesses one. If the URL is an index (§3.6), the world lets the
+   owner choose realms and installs each one as below. It refuses an unsupported `protocol` and says
+   which version it speaks.
 3. Builds a realm from the manifest alone: the types with their identities, properties, values and
    parts; joins through lookups, references and spine bindings; the declared pushdown; cache and
    cost policy; verbs with their approval policies; events as sources; skills; and proposed agents.
