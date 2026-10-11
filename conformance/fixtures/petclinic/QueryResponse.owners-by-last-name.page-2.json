@@ -1,0 +1,16 @@
+{
+  "records": [
+    {
+      "id": 10,
+      "firstName": "Carlos",
+      "lastName": "Estaban",
+      "address": "2335 Independence La.",
+      "city": "Waunakee",
+      "telephone": "6085555487"
+    }
+  ],
+  "applied": true,
+  "sorted": true,
+  "next": null,
+  "total": 2
+}

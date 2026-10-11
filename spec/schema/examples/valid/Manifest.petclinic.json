@@ -20,13 +20,7 @@
         "telephone": { "type": "string" }
       },
       "lookups": [{ "by": "id", "maxKeys": 500 }],
-      "filter": {
-        "properties": {
-          "lastName": ["eq", "in", "prefix", "ieq", "iprefix"],
-          "city": ["eq", "in"]
-        },
-        "logic": ["and"]
-      },
+      "filter": { "properties": { "lastName": ["prefix"] }, "logic": ["and"] },
       "sort": ["lastName", "city"],
       "query": { "maxPageSize": 200, "total": true },
       "cache": { "scope": "shared", "ttlSeconds": 60, "negativeTtlSeconds": 300 }

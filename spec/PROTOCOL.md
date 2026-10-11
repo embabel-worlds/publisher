@@ -95,8 +95,16 @@ are strict where a lenient rule would quietly break a join.
 | `object` | a nested object with declared properties — a value (§3.5) |
 
 **Keys are always strings on the wire**, in the canonical form of their declared type: an integer
-key `42` is sent and echoed as `"42"`, never `42.0` or `"4.2E1"`. A publisher that receives a key it
-cannot parse as the declared type treats it as missing (§4.2), not as an error.
+key `42` is sent and echoed as `"42"`, never `42.0`, `"042"` or `"4.2E1"`. A publisher that receives a key it
+cannot parse as the declared type treats it as missing (§4.2), not as an error. A key that is not in
+canonical form cannot be parsed: it names no value of its type.
+
+| Type | Canonical key form |
+|---|---|
+| `integer` | decimal digits, `-` for a negative, no leading zeros: `"42"`, `"-7"`, `"0"` |
+| `decimal` | plain notation without trailing fractional zeros: `"1234.5"`, `"100"`, `"0"`. A *value* keeps its scale (`"1234.50"`); its key does not. |
+| `boolean` | `"true"`, `"false"` |
+| `date`, `duration`, `enum`, `string` | the value's own JSON form |
 
 `null` means "this record has no value here". A property absent from a record means the same. The
 two are never used to signal anything else.
@@ -547,7 +555,14 @@ bring back.
 
 **Nulls.** A record whose property is null or absent satisfies only `isNull`. It fails every other
 operator, `ne` and `notIn` included. That is SQL's and Cypher's rule, and a publisher must apply it
-even where its store differs.
+even where its store differs. The logic is three-valued, as in both: such a comparison is
+*unknown*, `not` of unknown is unknown, and only a record whose expression is true is admitted.
+A null **operand** is never satisfied either: `{ "op": "eq", "value": null }` admits no record, and a
+null inside an `in` array matches nothing. `isNull` is how to ask for nulls.
+
+An operand that no value of the property could equal — an `enum` value the property does not
+declare, say — admits no record under `eq` and `in`. An operand that is not a value of the
+property's type at all (`"yesterday"` for a `date`) is refused with `INVALID_REQUEST`.
 
 **Existence across a relationship.** A type that declares `filter.exists` can test its related
 records without returning them:
@@ -595,7 +610,13 @@ returns at least those, plus the identity and the lookup property. It may return
 **Order and limit.** `sort` is a list of `{property, direction}`. The world sends `limit` (on a
 query) or `limitPerKey` (on a fetch) only when the whole predicate was pushed and the sort is
 declared, because only then are the first N records the right N. A publisher confirms with
-`"sorted": true`.
+`"sorted": true`, and answers `"sorted": false` when it could not apply the order on this call.
+
+**Nulls sort as the greatest value**: last in ascending order, first in descending order, as in
+Cypher. Where nulls go cannot be left to the store, which differs between databases, because with a
+pushed limit the first N records would then depend on which database the publisher runs on.
+Records equal on every sort key may come in any order, but a publisher that pages a sorted walk must
+order them the same way on every page, or the walk would skip and repeat records.
 
 ### 4.2 Fetch by keys
 
@@ -766,7 +787,9 @@ A publisher that answers over a limit is refused with `RESULT_BOUND`, never trun
 | `FORBIDDEN` | 403 | The acting user may not do this. |
 | `ACTING_USER_REQUIRED` | 401 | The manifest said `required` and none was sent. |
 | `UNKNOWN_TYPE` | 404 | Not a type in the current manifest. The world revalidates the manifest. |
-| `UNSUPPORTED` | 400 | A lookup, operator, connective, `exists`, sort, measure or grouping the type did not declare. |
+| `UNKNOWN_VERB` | 404 | Not a verb in the current manifest. The world revalidates the manifest. |
+| `UNSUPPORTED` | 400 | A lookup, operator, connective, `exists`, sort, measure or grouping the type did not declare; or a path that is not an operation this publisher serves. |
+| `INVALID_REQUEST` | 400 | The request is malformed: not JSON, missing a required field, an operand or a verb input that is not a value of its declared type, a cursor the publisher did not issue, or a verb input the publisher's own validation refused. Nothing was done. |
 | `KEY_BOUND` | 400 | More keys than `maxKeys`. |
 | `APPROVAL_REQUIRED` | 403 | The verb call needs an approval it did not carry, or carried one that is expired or does not match the call (§5.2). Nothing was done. |
 | `APPROVER_NOT_AUTHORIZED` | 403 | The approval is valid, but the publisher does not accept this approver (§5.2). |
@@ -774,6 +797,8 @@ A publisher that answers over a limit is refused with `RESULT_BOUND`, never trun
 | `RATE_LIMITED` | 429 | With `Retry-After`. |
 | `UNAVAILABLE` | 503 | Temporarily unable to answer. Never negatively cached. |
 | `PUBLISHER_DISABLED` | 503 | Publication is turned off (§2.2). The world stops serving the realm, cache included. |
+| `UNREACHABLE` | 409 | The publisher cannot reach a subscription's callback (§7.3). |
+| `INTERNAL` | 500 | The publisher failed for its own reasons. Never negatively cached. After a verb call, the world cannot know whether it took effect, and retries only with the same `Idempotency-Key`. |
 | `RESULT_BOUND` | — | World-side: the answer was over a limit in §4.5. |
 
 ## 5. Verbs
@@ -815,6 +840,9 @@ authorization.
 `POST {publisher}/verbs/{name}` carries the input as its body, the acting user, and an
 `Idempotency-Key` header the world generates per logical attempt and reuses on retry. A publisher
 that has seen that key returns the first answer again.
+
+A call that completes answers `200` with the output as its body: an object valid against the
+verb's `output` schema, or `{}` for a verb that declares no output. A refusal is a problem (§4.6).
 
 **Dry runs.** A verb that declares `"dryRun": true` accepts `POST {publisher}/verbs/{name}?dryRun=true`.
 The publisher validates the input and authorizes the call exactly as for a real call. It then reports

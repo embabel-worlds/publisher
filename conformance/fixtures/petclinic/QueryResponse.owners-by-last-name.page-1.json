@@ -1,0 +1,16 @@
+{
+  "records": [
+    {
+      "id": 8,
+      "firstName": "Maria",
+      "lastName": "Escobito",
+      "address": "345 Maple St.",
+      "city": "Madison",
+      "telephone": "6085557683"
+    }
+  ],
+  "applied": true,
+  "sorted": true,
+  "next": "bzE6MTox",
+  "total": 2
+}

@@ -1,0 +1,4 @@
+{ "type": "Owner",
+  "where": { "property": "lastName", "op": "prefix", "value": "Es" },
+  "sort": [{ "property": "lastName", "direction": "asc" }],
+  "pageSize": 2, "cursor": null }

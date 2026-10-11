@@ -1,5 +1,0 @@
-{ "type": "Owner",
-  "where": { "and": [ { "property": "city", "op": "eq", "value": "Madison" },
-                      { "property": "lastName", "op": "iprefix", "value": "e" } ] },
-  "sort": [{ "property": "lastName", "direction": "asc" }],
-  "pageSize": 2, "cursor": null }

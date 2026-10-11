@@ -16,3 +16,19 @@ any language the same way. Its requirements are in the protocol's
 - **Embeddable on the JVM**, so the Java library's test support can run it in-process.
 - **Versioned with the protocol.** A library is conformant at the protocol versions whose suite it
   passes.
+
+## Fixtures
+
+[`fixtures/petclinic/`](fixtures/petclinic/) holds real exchanges with Spring PetClinic published by the
+Java starter ([embabel-worlds/spring-petclinic](https://github.com/embabel-worlds/spring-petclinic),
+branch `embabel-publisher`), captured with curl from the running application. They are for building
+and testing the world side against a real publisher before the suite exists. Each file is named like
+the schema's examples, `<Def>.<label>.json`, and validates against that `$defs` entry; `VerbInput` and
+`VerbOutput` validate against the `addVisit` verb's `input` and `output` in `Manifest.json`.
+
+| File | What |
+|---|---|
+| `Manifest.json` | `GET /embabel` |
+| `FetchRequest/FetchResponse.pets-by-owner.json` | pets of owners 1, 6 and 99 that are cats or dogs |
+| `QueryRequest/QueryResponse.owners-by-last-name.page-1/2.json` | owners whose last name starts with "Es", one per page, walked by cursor: the one filter PetClinic's own search takes |
+| `VerbInput/VerbOutput.addVisit.json` | booking a visit |
