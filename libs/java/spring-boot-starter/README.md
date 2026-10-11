@@ -34,7 +34,7 @@ The first slice is in [`libs/java`](..), a Maven reactor of the three artifacts 
 |---|---|
 | The manifest from `@RealmType` view records: scalar and list-of-scalar properties, identity, spines, references, descriptions, cache policy; an `ETag` and `If-None-Match` | values and parts (§3.1), several realms (§2.1), metadata files and skills (§2.2) |
 | `@RealmLookup` on a method taking `Collection<K>`, with the batch contract: canonical keys, `missing`, `failed`, records in their declared JSON form | a single-`K` lookup, `Limit` per key (`limitPerKey`) |
-| `@RealmQuery` taking a `Specification<E>`, with a `Sort`, and a `Pageable` returning `Page<T>` (cursor and `total`) or `Slice<T>` (cursor), or a `Limit` returning one page | `ScrollPosition` and `Window`, `@RealmSearch`, `@RealmFields` |
+| `@RealmQuery` taking a criteria record (or, as a last resort, a `Specification<E>`), with a `Sort`, and a `Pageable` returning `Page<T>` (cursor and `total`) or `Slice<T>` (cursor), or a `Limit` returning one page | `ScrollPosition` and `Window`, `@RealmSearch`, `@RealmFields` |
 | `where` as a conjunction of `eq`, `in`, `gt`, `gte`, `lt`, `lte`, `between`, `prefix`, `ieq`, `iprefix`, `isNull`, `isNotNull`, with the protocol's null rules; `applied` and `sorted` echoed honestly | `or`, `not`, `exists`, `ne`, `notIn`, `contains`, `icontains`, `has`, `hasAny`; Querydsl, jOOQ, MongoDB |
 | `@RealmVerb` with approval `never` or `always`, input bound from a record and validated, output from a record | approval `when` and `decided`, approval tokens, dry runs, idempotency keys, `RealmCall` |
 | The world's bearer credential, compared in constant time, by a servlet filter that needs no Spring Security | Spring Security integration, the acting user (`actingUser` is always `ignored`) |
@@ -55,8 +55,10 @@ Boot 3.5 and Boot 4.1. Ordering is the exception. The protocol sorts nulls as th
 using Criteria Queries is not yet supported"), while Spring Data JPA 4 supports it. So on Boot 4 a
 method's `Sort` or `Pageable` carries the order. On Boot 3 the order travels in the `Specification`
 (a null key, then the value), the method receives an unsorted `Sort` or `Pageable`, and a method that
-sorts or pages must therefore also take a `Specification`. The starter refuses one that does not, at
-startup.
+sorts or pages by an attribute that can be null must therefore take a `Specification`. An attribute
+that cannot be null (`@Id`, `@Column(nullable = false)`, `@NotNull`, a required association) needs no
+null placement, so sorting by it works on both lines through a plain `Sort`, with no `Specification`.
+The starter checks this at startup.
 
 ---
 
@@ -69,13 +71,18 @@ application's `@RestController`s. It calls service methods through the Spring pr
 acting user in the `SecurityContext`, so every transaction boundary, security rule and audit hook
 applies as it does for a request from the UI. It never reads a repository on its own initiative.
 
-**Pushdown comes from parameter types, and is chosen per property.** The more expressive the types a
-service method accepts, the more of a query the starter can hand it. A method that takes a Spring
-Data `Specification` accepts the whole filter tree. A method that takes a plain filter object
-accepts equality on its fields. The developer marks which properties a world may filter and sort on
-(`@RealmType.Filterable`, `@RealmType.Sortable`), because what a world may push down is the
-application owner's decision. The starter refuses at startup any declaration the signatures cannot
-carry, so the description cannot drift from what the code can do.
+**Pushdown comes from what the service already accepts.** An application's search methods take
+criteria: a last-name prefix, a status, a date range. The starter reads a method's criteria record
+and declares exactly those filters, and the world evaluates everything else itself over what comes
+back. The realm then searches the way the application's own screens do, through methods its
+developers wrote, tested and secured, and the data layer gains no new query surface. The starter
+refuses at startup a criterion it cannot honour, so the description cannot drift from the code.
+
+**A `Specification` is the last resort.** A method that takes a Spring Data `Specification` accepts
+the whole filter tree, which pushes down the most. It also needs a repository that extends
+`JpaSpecificationExecutor`, which gives every caller of that repository arbitrary queries and
+deletes, not just the realm. Use it only when the developer asks for richer pushdown and accepts
+that. The properties it may filter on are then marked `@RealmType.Filterable`.
 
 **The method still owns the query.** A pushed-down filter reaches the method as a value the method
 combines with its own rules (`where.and(visibleTo(user))`). It cannot remove those rules, because
@@ -254,7 +261,7 @@ public record InvoiceView(
 | `@RealmType.Spine("Organization")` | `spine` on the property (protocol §6) |
 | `@RealmType.Reference` | `references` (protocol §3.2) |
 | `@RealmType.Path("customer.id")` | where the property lives on `entity`, when it is not the same name |
-| `@RealmType.Filterable` | the property in `filter.properties`, with every operator the starter evaluates exactly for its type; `@RealmType.Filterable({EQ, IN})` names them |
+| `@RealmType.Filterable` | the property in `filter.properties`, for a type whose query takes a `Specification` (the last resort) or that has no query, whose lookups the starter then filters in-process; with every operator the starter evaluates exactly for its type, or those named: `@RealmType.Filterable({EQ, IN})`. A type queried through a criteria record declares its filters there instead. |
 | `@RealmType.Sortable` | the property in `sort` |
 | `@RealmType(cache = @RealmType.Cache(value = SHARED, ttlSeconds = 60))` | `cache` |
 | `@JsonClassDescription`, `@JsonPropertyDescription` | `description` |
@@ -328,7 +335,37 @@ Read methods are ordinary service methods with an annotation. They can live on a
 starter finds them the way Spring finds `@Scheduled` and `@EventListener` methods, so an existing
 `@Service` needs no new stereotype.
 
-### 4.1 Lookups, with the filter pushed in
+### 4.1 Lookups
+
+```java
+@Service
+@Transactional(readOnly = true)
+class InvoiceService {
+
+    private final InvoiceRepository invoices;   // a plain JpaRepository
+
+    public record InvoiceFilter(InvoiceStatus status) {
+    }
+
+    @RealmLookup(by = "number", maxKeys = 500)
+    public List<InvoiceView> byNumbers(Collection<String> numbers) {
+        return invoices.findByNumberIn(numbers).stream().map(InvoiceView::from).toList();
+    }
+
+    @RealmLookup(by = "customerId", maxKeys = 100)
+    public List<InvoiceView> byCustomers(Collection<Long> customerIds, InvoiceFilter filter, Sort sort) {
+        return invoices.findByCustomerIdInAndStatus(customerIds, filter.status(), sort)
+                .stream().map(InvoiceView::from).toList();
+    }
+}
+```
+
+A lookup filters by whatever its criteria record carries (here `status eq`). The rest of a pushed
+`where` the starter evaluates itself, over the records the method returns, with the protocol's
+reference evaluator, and answers `applied: true`. Lookups return a bounded number of records per
+key, so this is cheap and exact, and a lookup needs no filter parameter at all.
+
+The same lookups with a `Specification`, the last resort:
 
 ```java
 @Service
@@ -354,7 +391,11 @@ class InvoiceService {
 }
 ```
 
-When nothing is pushed, the starter passes a `Specification` that matches everything, never `null`, so a method can always `and` it.
+When nothing is pushed, the starter passes a `Specification` that matches everything, never
+`null`, so a method can always `and` it. A criteria record's components are `null` for whatever
+was not pushed, which a method treats as "no filter", as its own search form does. When an operand
+can match no record (`eq null`, an enum value the type does not have), the starter answers with no
+records and does not call the method, so "no filter" never answers instead.
 
 Realm methods are `public`: the starter calls them through the bean's proxy, so `@Transactional` and
 method security apply, and refuses at startup a non-public one. A lookup that takes no
@@ -374,6 +415,28 @@ supports. A method can of course write that query itself.
 ### 4.2 Queries and paging
 
 ```java
+public record OwnerSearch(@RealmQuery.Criterion(property = "lastName", op = Op.PREFIX) String lastNamePrefix) {
+}
+
+@RealmQuery(maxPageSize = 200)
+public Page<OwnerView> search(OwnerSearch search, Pageable pageable) {
+    String prefix = search.lastNamePrefix() == null ? "" : search.lastNamePrefix();
+    return owners.findByLastNameStartingWith(prefix, pageable).map(OwnerView::of);
+}
+```
+
+That is Spring PetClinic's find-owners search, published as is. The manifest declares
+`lastName: [prefix]`, and nothing else; a world that wants owners in Madison asks for them, and
+filters `city` itself over the pages. A component is the view property of its own name compared
+with `eq`, a `Collection` with `in` and a Spring Data `Range` with `between`;
+`@RealmQuery.Criterion(property, op)` names either. The starter fills the record from the pushed
+conjunction. If it cannot hold all of it (two values for one criterion, say) it calls the method with
+what it can and answers `applied: false`, so the world re-checks every record and no `limit` is
+applied.
+
+As a last resort, with the whole filter tree:
+
+```java
 @RealmQuery(maxPageSize = 200)
 Window<InvoiceView> search(Specification<Invoice> where, Sort sort, Limit limit, ScrollPosition position) {
     return invoices.findBy(where.and(InvoiceSpecs.visibleToCurrentUser()),
@@ -387,17 +450,19 @@ while rows are inserted.
 
 ### 4.3 What each parameter type declares
 
+In order of preference:
+
 | Parameter or return type | Pushdown declared |
 |---|---|
 | `Collection<K>` | a batched lookup on the `by` property |
 | a single `K` | a lookup the starter loops over in-process, `maxKeys` defaulting to 50 |
-| `Specification<E>` | every operator the translator supports per property type, `and`/`or`/`not`, and `exists` over mapped associations |
-| `@RealmPredicate(root = Invoice.class) Predicate` | the same, through Querydsl, the way `@QuerydslPredicate` binds Spring MVC parameters |
-| jOOQ `Condition` | the same, for a field map the type registers |
-| MongoDB `Criteria` | the same, minus `exists` |
-| a plain filter object | `eq` for each scalar field, `in` for each collection field, `between` for each `Range<T>` field; `and` only |
+| a criteria record | **the default.** One (property, operator) per component: `eq` by default, `in` for a `Collection`, `between` for a `Range<T>`, or what `@RealmQuery.Criterion` names; `and` only |
+| `Sort` | sorting by the `@RealmType.Sortable` properties |
 | `RealmFilter` | the raw protocol tree, for a source the starter cannot translate into, such as a remote API. The method declares what it accepts with `@RealmFilters(...)` and walks the tree with a visitor. |
-| `Sort` | sorting by exposed properties that map to the entity |
+| `Specification<E>` | **last resort.** Every operator the translator supports on the `@RealmType.Filterable` properties, and in time `or`/`not` and `exists` over mapped associations. Needs `JpaSpecificationExecutor` on the repository. |
+| `@RealmPredicate(root = Invoice.class) Predicate` | last resort: the same, through Querydsl |
+| jOOQ `Condition` | last resort: the same, for a field map the type registers |
+| MongoDB `Criteria` | last resort: the same, minus `exists` |
 | `Limit` on a lookup | `limitPerKey` |
 | `Limit` on a query | `limit` |
 | `ScrollPosition` → `Window<T>` | cursor paging |
@@ -847,7 +912,7 @@ the starter and runs `@RealmConformance`. The draft of the Spring reference is
 | a starter dependency and five lines of YAML | a publisher URL to paste |
 | `@RealmType` on view records | types, with descriptions, spine bindings and relationships |
 | `@RealmLookup` on batched service methods | joins from anywhere in the world into the application, including identity bridging in their code |
-| `Specification`, `Sort`, `Limit`, `ScrollPosition` parameters | filters, ordering, per-key limits and paging evaluated next to the data |
+| criteria records, `Sort`, `Limit`, `Pageable` parameters | filters, ordering, limits and paging evaluated next to the data, through the searches the application already has |
 | `@RealmAggregate` | counts and sums computed in the database |
 | `@RealmVerb` with `@RealmVerb.Approval` | operations its agents can propose, approved by the right people and enforced by the application |
 | `dryRun = true` and `call.isDryRun()` | approvers and observing agents see what a call would do before it happens |

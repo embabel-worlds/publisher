@@ -47,6 +47,8 @@ How this stack meets it is in `references/`. Read the reference for this stack b
   none, stop and say this stack has no publisher library yet. The protocol is plain HTTP and JSON, and
   a hand-written publisher is possible, but that is the developer's call.
 - Find the service layer, the domain aggregates and the existing view types or DTOs.
+- Find the searches the application already runs: the service or repository methods behind its
+  search screens, and the criteria they take. These are what the realm should query through.
 - Find how the current user is established (session, token, security context), and how
   authorization is expressed.
 - Find side effects: email, payments, messaging, calls to other systems.
@@ -63,7 +65,7 @@ Present one table per section and ask the developer to confirm or trim it:
 |---|---|
 | **Types** | view class, identity, properties, spine bindings, references, values and parts (protocol §3.5) |
 | **Lookups** | the property, the existing batch method or the one to add, and `maxKeys` |
-| **Queries** | which types can be listed, the filterable properties and operators, sorting, paging |
+| **Queries** | which types can be listed, through which existing search method, the filters its criteria carry, sorting, paging |
 | **Aggregates** | only reductions the developer confirms are exact |
 | **Verbs** | the service method, its effect, its approval rule and reason, whether it supports a dry run |
 | **Events** | the domain events worth reacting to, with their subject type |
@@ -81,8 +83,16 @@ Follow `references/<stack>.md`. In general:
   schemes and acting-user mode.
 - Annotate or register the view types. Add batch lookup methods where only single-record methods
   exist, using the data layer's own batch call (an `IN` query), not a loop, where that is cheap.
-- Give read methods the most expressive filter parameter the stack's library supports. That is
-  what maximizes pushdown, and the library declares the capability from the signature.
+- Query through the service's **existing search methods and their criteria**. The library declares
+  exactly the filters a method's criteria carry, and the world evaluates everything else itself
+  over what comes back. That is less pushdown, and it is the right default: the realm then searches
+  the way the application's own screens do, through methods its developers already wrote, tested
+  and secured, and the data layer gains no new query surface.
+- Add a richer filter parameter (a whole filter tree, such as a JPA `Specification` or a Querydsl
+  `Predicate`) **only as a last resort**: when the developer asks for more pushdown and accepts
+  what it costs. It lets a world compose arbitrary queries against the data layer, and on many
+  stacks it widens the repository itself (in Spring Data, `JpaSpecificationExecutor` adds
+  arbitrary queries and deletes to every caller of that repository, not just to the realm).
 - Add verbs with their approval rules. Before any external effect, check for a dry run, and require
   approval for `decided` verbs.
 - Publish events after commit, through the library's outbox.

@@ -37,12 +37,14 @@ says which parts are built. Do not propose what is not: in particular, approval 
 | Plan | Spring |
 |---|---|
 | type | `@RealmType(name, entity, cache)` on the view record; `@RealmType.Id`, `.Spine`, `.Reference`, `.Path` on components |
-| filterable property | `@RealmType.Filterable({EQ, IN, …})` on the component; the operators the plan agreed, no more |
+| filter | a criteria record the existing search method takes; each component is one (property, operator): `eq` by default, `in` for a `Collection`, `between` for a `Range`, or `@RealmQuery.Criterion(property = "lastName", op = Op.PREFIX)` |
+| filter on a type with no query | `@RealmType.Filterable({…})` on the component; its lookups are filtered in-process |
 | sortable property | `@RealmType.Sortable` on the component |
 | value | a nested record with no annotation |
 | part | `@RealmType.Part List<T>`, and `@RealmType.OwnerKey` on the part |
-| lookup | `@RealmLookup(by, maxKeys)` on a public service method taking `Collection<K>` and, if the type is filterable, `Specification<E>` |
-| query | `@RealmQuery(maxPageSize)` on a public method taking `Specification<E>` and `Pageable`, returning `Page<T>` |
+| lookup | `@RealmLookup(by, maxKeys)` on a public service method taking `Collection<K>`, and optionally a criteria record and a `Sort` |
+| query | `@RealmQuery(maxPageSize)` on a public method wrapping the existing search: a criteria record and a `Pageable`, returning `Page<T>` |
+| richer pushdown, last resort | a `Specification<E>` parameter and `@RealmType.Filterable` properties, only when the developer asks and accepts `JpaSpecificationExecutor` on the repository |
 | aggregate | `@RealmAggregate(groupBy, count, sum, …)` |
 | verb | `@RealmVerb(description, subject, effect, idempotent)` with `@RealmVerb.Approval(required, reason)`, on a public method taking one record (its input; `@NotNull` marks a required field) and returning a record or nothing |
 | event | `@RealmEvent(subject)` on the application event record, `@RealmEvent.Key` on its key |
@@ -56,15 +58,24 @@ says which parts are built. Do not propose what is not: in particular, approval 
 - **Add a service layer when the controllers call repositories.** Many applications (Spring
   PetClinic among them) have none. Add services beside the controllers for exactly what the realm
   exposes, and leave the controllers alone: that keeps the change small and reviewable.
+- **Wrap the existing search; do not widen the repository.** Publish the query through the method
+  the application's search screen already calls (PetClinic's `findByLastNameStartingWith`), with a
+  criteria record of what it takes. Do not add `JpaSpecificationExecutor` to a repository to get more
+  pushdown: it gives every caller of the repository arbitrary queries and deletes. The world filters
+  what the criteria do not carry. Offer a `Specification` only if the developer asks for richer
+  pushdown, and say what it costs.
 - **Batch, from the side that maps the association.** A lookup by a foreign key the entity does not
   map (a unidirectional `@OneToMany` from the owner, say) reads the pairs with one JPQL join from the
-  owning side, then loads the records by id with the `Specification`. Never loop per key.
+  owning side, then loads the records with `findAllById`. Never loop per key.
 - **Mirror the UI's rules in the verb.** If a controller enforces a rule the service does not (a
   visit must be in the future), the verb must enforce it too, or the realm is a way around it. Throw
   `IllegalArgumentException`; the starter answers `INVALID_REQUEST` with its message.
-- **Spring Boot 3 sorts through the `Specification`.** Spring Data JPA 3 cannot place nulls in a
-  Criteria query, so on that line a method that sorts or pages must also take a `Specification`. The
-  starter says so at startup.
+- **Sort by attributes that cannot be null.** The protocol sorts nulls last ascending, and Spring
+  Data JPA 3 cannot place nulls. On Boot 3, a sortable property must map to an attribute that cannot
+  be null (`@Column(nullable = false)`, `@NotNull`, `@NotBlank`), unless the method takes a
+  `Specification`. The starter says so at startup.
+- **A criteria component is `null` when nothing was pushed for it**, so treat `null` as "no filter",
+  as the search form does. Never make one primitive.
 - **Combine, never replace.** A method receiving a `Specification` must `and` it with its own rules:
   `where.and(visibleToCurrentUser())`. The starter never passes `null`.
 - **Call through the proxy.** Put realm annotations on the bean's public methods. A method the bean
