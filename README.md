@@ -17,7 +17,8 @@ authorization.
 | [`libs/`](libs/) | Publisher libraries. Java (with a Spring Boot starter) first; others welcome. |
 
 **Status: proposal.** The protocol is being designed in the open before any library is released.
-Nothing here is ready to use yet.
+A first slice of the Java library exists and publishes [Spring PetClinic](conformance/README.md#fixtures),
+but nothing here is released or ready to depend on yet.
 
 ## Turning it off
 

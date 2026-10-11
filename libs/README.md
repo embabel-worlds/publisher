@@ -2,7 +2,7 @@
 
 | Language | Stack | Status |
 |---|---|---|
-| Java | [Spring Boot starters](java/spring-boot-starter/README.md) for Boot 4 and Boot 3, over a framework-free core | in development |
+| Java | [Spring Boot starters](java/spring-boot-starter/README.md) for Boot 4 and Boot 3, over a framework-free core | first slice built ([what is built](java/spring-boot-starter/README.md#status-what-is-built)); not released |
 
 Each library implements the [protocol](../spec/PROTOCOL.md), passes the
 [conformance suite](../conformance/), honours `EMBABEL_REALM_ENABLED`, and ships the
