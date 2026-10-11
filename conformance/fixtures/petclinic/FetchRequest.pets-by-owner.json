@@ -1,0 +1,17 @@
+{
+  "type": "Pet",
+  "by": "ownerId",
+  "keys": [
+    "1",
+    "6",
+    "99"
+  ],
+  "where": {
+    "property": "type",
+    "op": "in",
+    "value": [
+      "cat",
+      "dog"
+    ]
+  }
+}

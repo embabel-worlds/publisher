@@ -1,0 +1,24 @@
+{
+  "records": [
+    {
+      "id": 5,
+      "firstName": "Peter",
+      "lastName": "McTavish",
+      "address": "2387 S. Fair Way",
+      "city": "Madison",
+      "telephone": "6085552765"
+    },
+    {
+      "id": 9,
+      "firstName": "David",
+      "lastName": "Schroeder",
+      "address": "2749 Blackhawk Trail",
+      "city": "Madison",
+      "telephone": "6085559435"
+    }
+  ],
+  "applied": true,
+  "sorted": true,
+  "next": null,
+  "total": 4
+}
