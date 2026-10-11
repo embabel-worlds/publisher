@@ -30,5 +30,5 @@ the schema's examples, `<Def>.<label>.json`, and validates against that `$defs` 
 |---|---|
 | `Manifest.json` | `GET /embabel` |
 | `FetchRequest/FetchResponse.pets-by-owner.json` | pets of owners 1, 6 and 99 that are cats or dogs |
-| `QueryRequest/QueryResponse.owners-in-madison.page-1/2.json` | owners in Madison by last name, two per page, walked by cursor |
+| `QueryRequest/QueryResponse.owners-by-last-name.page-1/2.json` | owners whose last name starts with "Es", one per page, walked by cursor: the one filter PetClinic's own search takes |
 | `VerbInput/VerbOutput.addVisit.json` | booking a visit |

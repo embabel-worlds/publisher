@@ -45,15 +45,7 @@
       "filter": {
         "properties": {
           "lastName": [
-            "eq",
-            "in",
-            "prefix",
-            "ieq",
-            "iprefix"
-          ],
-          "city": [
-            "eq",
-            "in"
+            "prefix"
           ]
         },
         "logic": [

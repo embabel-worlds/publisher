@@ -1,0 +1,16 @@
+{
+  "type": "Owner",
+  "where": {
+    "property": "lastName",
+    "op": "prefix",
+    "value": "Es"
+  },
+  "sort": [
+    {
+      "property": "lastName",
+      "direction": "asc"
+    }
+  ],
+  "pageSize": 1,
+  "cursor": "bzE6MTox"
+}
