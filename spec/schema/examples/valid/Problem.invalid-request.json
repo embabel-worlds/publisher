@@ -1,0 +1,2 @@
+{ "type": "about:blank", "title": "The request is not valid", "status": 400, "code": "INVALID_REQUEST",
+  "detail": "date: not a date: yesterday" }

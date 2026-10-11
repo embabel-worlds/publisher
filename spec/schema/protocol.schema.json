@@ -463,9 +463,9 @@
         "status": { "type": "integer" },
         "detail": { "type": "string" },
         "code": {
-          "enum": ["UNAUTHENTICATED", "FORBIDDEN", "ACTING_USER_REQUIRED", "UNKNOWN_TYPE", "UNSUPPORTED",
-                   "KEY_BOUND", "EXPRESSION_BOUND", "APPROVAL_REQUIRED", "APPROVER_NOT_AUTHORIZED",
-                   "RATE_LIMITED", "UNAVAILABLE", "PUBLISHER_DISABLED", "UNREACHABLE"]
+          "enum": ["UNAUTHENTICATED", "FORBIDDEN", "ACTING_USER_REQUIRED", "UNKNOWN_TYPE", "UNKNOWN_VERB", "UNSUPPORTED",
+                   "INVALID_REQUEST", "KEY_BOUND", "EXPRESSION_BOUND", "APPROVAL_REQUIRED", "APPROVER_NOT_AUTHORIZED",
+                   "RATE_LIMITED", "UNAVAILABLE", "PUBLISHER_DISABLED", "UNREACHABLE", "INTERNAL"]
         },
         "reason": { "type": "string" }
       }
