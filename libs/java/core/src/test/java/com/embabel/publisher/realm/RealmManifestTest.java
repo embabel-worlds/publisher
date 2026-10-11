@@ -47,7 +47,7 @@ class RealmManifestTest {
     }
 
     private static LookupBinding lookup(Class<?> view, String by, boolean pushes, boolean sorts) {
-        return new LookupBinding(TypeIntrospector.introspect(view), by, 100, pushes, sorts, (k, w, s) -> List.of(), "test");
+        return new LookupBinding(TypeIntrospector.introspect(view), by, 100, pushes, null, sorts, (k, w, s) -> List.of(), "test");
     }
 
     @Test
@@ -58,7 +58,7 @@ class RealmManifestTest {
         Realm realm = Realm.build(settings(),
                 List.of(lookup(CustomerView.class, "id", true, true), lookup(InvoiceView.class, "customerId", false, false),
                         lookup(InvoiceView.class, "number", false, false)),
-                List.of(new QueryBinding(TypeIntrospector.introspect(CustomerView.class), 200, true, true, QueryBinding.Paging.PAGE, null, "test")),
+                List.of(new QueryBinding(TypeIntrospector.introspect(CustomerView.class), 200, true, null, true, QueryBinding.Paging.PAGE, null, "test")),
                 List.of(refund));
         Map<String, Object> manifest = realm.manifest();
         assertThat(manifest).containsEntry("protocol", "1").containsEntry("name", "billing")

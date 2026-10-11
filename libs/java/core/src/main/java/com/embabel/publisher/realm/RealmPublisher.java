@@ -157,7 +157,8 @@ public final class RealmPublisher implements RealmEndpoint {
         if (!parsed.isEmpty()) {
             Collection<?> views;
             try {
-                views = lookup.invoker().fetch(new ArrayList<>(parsed.values()), lookup.pushesWhere() ? where : null,
+                views = lookup.invoker().fetch(new ArrayList<>(parsed.values()),
+                        lookup.pushesWhere() || lookup.criteria() != null ? where : null,
                         lookup.sorts() ? sort : List.of());
             }
             catch (RealmException e) {
@@ -267,12 +268,14 @@ public final class RealmPublisher implements RealmEndpoint {
         List<Map<String, Object>> records = new ArrayList<>();
         Map<String, Object> response = new LinkedHashMap<>();
         boolean more;
+        boolean applied = true;
         Long total = null;
         if (limit != null && offset >= limit) {
             more = false;
         }
         else {
             QueryBinding.Page page = query.invoker().query(where, query.sorts() ? sort : List.of(), cursor.page(), cursor.pageSize());
+            applied = page.applied();
             List<?> items = page.items();
             more = page.hasNext();
             total = page.total();
@@ -283,7 +286,8 @@ public final class RealmPublisher implements RealmEndpoint {
             for (Object view : items) {
                 records.add(RecordWriter.write(view, entry.model()));
             }
-            if (limit != null && offset + records.size() >= limit) {
+            /* A response that did not apply the whole filter must not apply the limit either (§4.1). */
+            if (applied && limit != null && offset + records.size() >= limit) {
                 /* The limit ends the walk (§4.3): what is beyond it was not asked for, so nothing is cut short. */
                 records = records.subList(0, (int) (limit - offset));
                 more = false;
@@ -291,7 +295,7 @@ public final class RealmPublisher implements RealmEndpoint {
         }
         boolean pages = query.paging() == QueryBinding.Paging.PAGE || query.paging() == QueryBinding.Paging.SLICE;
         response.put("records", records);
-        response.put("applied", true);
+        response.put("applied", applied);
         if (!sort.isEmpty()) {
             response.put("sorted", query.sorts());
         }

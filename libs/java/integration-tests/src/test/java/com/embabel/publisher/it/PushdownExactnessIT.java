@@ -48,13 +48,13 @@ class PushdownExactnessIT {
     @Test
     void everyDeclaredOperatorOnAQueryIsExact() {
         JsonNode type = PublisherIT.type(manifest, "Customer");
-        List<Map<String, Object>> all = queryAll(null);
+        List<Map<String, Object>> all = queryAll("Customer", null);
         assertThat(all).hasSize(10);
         int checked = 0;
         for (Map<String, Object> where : comparisons(type, all)) {
             Set<String> expected = admitted(type, where, all);
             Set<String> pushed = new TreeSet<>();
-            queryAll(where).forEach(r -> pushed.add(String.valueOf(r.get("id"))));
+            queryAll("Customer", where).forEach(r -> pushed.add(String.valueOf(r.get("id"))));
             assertThat(pushed).as("pushed %s", where).isEqualTo(expected);
             checked++;
         }
@@ -64,13 +64,13 @@ class PushdownExactnessIT {
     @Test
     void aConjunctionIsExact() {
         JsonNode type = PublisherIT.type(manifest, "Customer");
-        List<Map<String, Object>> all = queryAll(null);
+        List<Map<String, Object>> all = queryAll("Customer", null);
         Map<String, Object> where = map("and", List.of(
                 map("property", "city", "op", "in", "value", Arrays.asList("Madison", "Berlin", null)),
                 map("property", "balance", "op", "between", "value", List.of("0", "1200.5")),
                 map("property", "region", "op", "isNotNull")));
         Set<String> pushed = new TreeSet<>();
-        queryAll(where).forEach(r -> pushed.add(String.valueOf(r.get("id"))));
+        queryAll("Customer", where).forEach(r -> pushed.add(String.valueOf(r.get("id"))));
         assertThat(pushed).isEqualTo(admitted(type, where, all)).containsExactly("1", "10", "2", "5");
     }
 
@@ -78,24 +78,57 @@ class PushdownExactnessIT {
     void everyDeclaredOperatorOnALookupIsExactWhetherPushedOrEvaluatedByThePublisher() {
         JsonNode type = PublisherIT.type(manifest, "Invoice");
         List<String> customers = List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
-        List<Map<String, Object>> all = fetch("customerId", customers, null);
+        List<Map<String, Object>> all = fetch("Invoice", "customerId", customers, null);
         assertThat(all).hasSize(7);
         int checked = 0;
         for (Map<String, Object> where : comparisons(type, all)) {
             Set<String> expected = admitted(type, where, all);
             Set<String> pushed = new TreeSet<>();
-            fetch("customerId", customers, where).forEach(r -> pushed.add((String) r.get("number")));
+            fetch("Invoice", "customerId", customers, where).forEach(r -> pushed.add((String) r.get("number")));
             assertThat(pushed).as("pushed %s", where).isEqualTo(expected);
 
             /* The lookup by number takes no Specification, so the publisher evaluates the same filter itself. */
             Set<String> evaluated = new TreeSet<>();
             for (List<String> batch : List.of(List.of("INV-1", "INV-2", "INV-3"), List.of("INV-4", "INV-5", "INV-6"), List.of("INV-7"))) {
-                fetch("number", batch, where).forEach(r -> evaluated.add((String) r.get("number")));
+                fetch("Invoice", "number", batch, where).forEach(r -> evaluated.add((String) r.get("number")));
             }
             assertThat(evaluated).as("evaluated %s", where).isEqualTo(expected);
             checked++;
         }
         assertThat(checked).isGreaterThan(50);
+    }
+
+    @Test
+    void everyPairACriteriaRecordDeclaresIsExactOnAQuery() {
+        JsonNode type = PublisherIT.type(manifest, "Product");
+        List<Map<String, Object>> all = queryAll("Product", null);
+        assertThat(all).hasSize(8);
+        int checked = 0;
+        for (Map<String, Object> where : comparisons(type, all)) {
+            Set<String> pushed = new TreeSet<>();
+            queryAll("Product", where).forEach(r -> pushed.add(String.valueOf(r.get("id"))));
+            assertThat(pushed).as("pushed %s", where).isEqualTo(admitted(type, where, all));
+            checked++;
+        }
+        assertThat(checked).isGreaterThan(50);
+    }
+
+    @Test
+    void aLookupCarriesWhatItsCriteriaCanAndThePublisherEvaluatesTheRest() {
+        JsonNode type = PublisherIT.type(manifest, "Product");
+        List<String> ids = List.of("1", "2", "3", "4", "5", "6", "7", "8", "404");
+        List<Map<String, Object>> all = fetch("Product", "id", ids, null);
+        assertThat(all).hasSize(8);
+        for (Map<String, Object> where : comparisons(type, all)) {
+            Set<String> fetched = new TreeSet<>();
+            fetch("Product", "id", ids, where).forEach(r -> fetched.add(String.valueOf(r.get("id"))));
+            assertThat(fetched).as("fetched %s", where).isEqualTo(admitted(type, where, all));
+        }
+        Map<String, Object> both = map("and", List.of(map("property", "category", "op", "eq", "value", "TOOLS"),
+                map("property", "name", "op", "prefix", "value", "Ham")));
+        Set<String> fetched = new TreeSet<>();
+        fetch("Product", "id", ids, both).forEach(r -> fetched.add(String.valueOf(r.get("id"))));
+        assertThat(fetched).isEqualTo(admitted(type, both, all)).containsExactly("1", "7");
     }
 
     /* Every declared (property, operator), with operands from the data, a value absent from it, and null. */
@@ -173,11 +206,11 @@ class PushdownExactnessIT {
         return out;
     }
 
-    private List<Map<String, Object>> queryAll(Map<String, Object> where) {
+    private List<Map<String, Object>> queryAll(String type, Map<String, Object> where) {
         List<Map<String, Object>> records = new ArrayList<>();
         Object cursor = null;
         do {
-            Map<String, Object> request = map("type", "Customer", "cursor", cursor);
+            Map<String, Object> request = map("type", type, "cursor", cursor);
             if (where != null) {
                 request.put("where", where);
             }
@@ -190,8 +223,8 @@ class PushdownExactnessIT {
         return records;
     }
 
-    private List<Map<String, Object>> fetch(String by, List<String> keys, Map<String, Object> where) {
-        Map<String, Object> request = map("type", "Invoice", "by", by, "keys", keys);
+    private List<Map<String, Object>> fetch(String type, String by, List<String> keys, Map<String, Object> where) {
+        Map<String, Object> request = map("type", type, "by", by, "keys", keys);
         if (where != null) {
             request.put("where", where);
         }

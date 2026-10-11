@@ -25,13 +25,20 @@ final class DataSupport {
     static Sort sort(List<SpecificationTranslator.OrderKey> order) {
         List<Sort.Order> orders = new ArrayList<>();
         for (SpecificationTranslator.OrderKey key : order) {
-            orders.add(key.descending() ? Sort.Order.desc(key.entityPath()).nullsFirst() : Sort.Order.asc(key.entityPath()).nullsLast());
+            Sort.Order plain = key.descending() ? Sort.Order.desc(key.entityPath()) : Sort.Order.asc(key.entityPath());
+            /* A key that cannot be null needs no null placement, which Spring Data JPA 3 cannot express. */
+            orders.add(!key.nullable() ? plain : key.descending() ? plain.nullsFirst() : plain.nullsLast());
         }
         return orders.isEmpty() ? Sort.unsorted() : Sort.by(orders);
     }
 
     static Sort unsorted() {
         return Sort.unsorted();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static Object closedRange(Object low, Object high) {
+        return org.springframework.data.domain.Range.closed((Comparable) low, (Comparable) high);
     }
 
     static Object pageable(int page, int size, Sort sort) {
@@ -46,18 +53,18 @@ final class DataSupport {
         return switch (paging) {
             case PAGE -> {
                 Page<?> page = (Page<?>) result;
-                yield new QueryBinding.Page(page.getContent(), page.hasNext(), page.getTotalElements());
+                yield new QueryBinding.Page(page.getContent(), page.hasNext(), page.getTotalElements(), true);
             }
             case SLICE -> {
                 Slice<?> slice = (Slice<?>) result;
-                yield new QueryBinding.Page(slice.getContent(), slice.hasNext(), null);
+                yield new QueryBinding.Page(slice.getContent(), slice.hasNext(), null, true);
             }
             case LIMIT -> {
                 List<?> items = new ArrayList<>((Collection<?>) result);
                 boolean more = items.size() > pageSize;
-                yield new QueryBinding.Page(more ? items.subList(0, pageSize) : items, more, null);
+                yield new QueryBinding.Page(more ? items.subList(0, pageSize) : items, more, null, true);
             }
-            case NONE -> new QueryBinding.Page(new ArrayList<>((Collection<?>) result), false, null);
+            case NONE -> new QueryBinding.Page(new ArrayList<>((Collection<?>) result), false, null, true);
         };
     }
 }

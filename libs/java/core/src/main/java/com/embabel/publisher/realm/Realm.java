@@ -126,7 +126,7 @@ public final class Realm {
             typeLookups.forEach(ordered::putIfAbsent);
             QueryBinding query = queryByType.get(model.name());
             entries.put(model.name(), new TypeEntry(model, ordered, query,
-                    filterOf(model, query), sortOf(model, ordered.values(), query)));
+                    filterOf(model, query, ordered.values()), sortOf(model, ordered.values(), query)));
         }
 
         for (TypeEntry entry : entries.values()) {
@@ -171,8 +171,30 @@ public final class Realm {
         return existing == null ? model : existing;
     }
 
-    private static Map<String, Set<Op>> filterOf(TypeModel model, QueryBinding query) {
+    /**
+     * What a type declares it can filter, which every read of it must then honour (§3.1). A query
+     * cannot be filtered after the fact without breaking its pages, so a type with a query declares
+     * exactly what the query carries: its criteria record's pairs, or with a {@code Specification}
+     * the {@code @RealmType.Filterable} properties. A lookup honours any of it, because the publisher
+     * evaluates whatever its method could not carry over the records it returns.
+     */
+    private static Map<String, Set<Op>> filterOf(TypeModel model, QueryBinding query, Collection<LookupBinding> lookups) {
+        boolean annotated = model.properties().values().stream().anyMatch(PropertyModel::filterable);
+        if (query != null && query.criteria() != null) {
+            if (annotated) {
+                throw new RealmDefinitionException(query.source() + ": " + model.name() + "'s filters are declared by its query's criteria record; "
+                        + "remove @RealmType.Filterable, which declares them for a Specification");
+            }
+            return copy(query.criteria());
+        }
         Map<String, Set<Op>> filter = new LinkedHashMap<>();
+        if (query == null) {
+            for (LookupBinding lookup : lookups) {
+                if (lookup.criteria() != null) {
+                    lookup.criteria().forEach((property, ops) -> filter.computeIfAbsent(property, k -> new LinkedHashSet<>()).addAll(ops));
+                }
+            }
+        }
         for (PropertyModel property : model.properties().values()) {
             if (!property.filterable()) {
                 continue;
@@ -187,12 +209,18 @@ public final class Realm {
                     throw new RealmDefinitionException(where + ": " + op.wire() + " is not supported by this version of the library");
                 }
             }
-            filter.put(property.name(), ops);
+            filter.computeIfAbsent(property.name(), k -> new LinkedHashSet<>()).addAll(ops);
         }
         if (!filter.isEmpty() && query != null && !query.pushesWhere()) {
             throw new RealmDefinitionException(query.source() + ": " + model.name()
-                    + " declares filters, but its query cannot take them; add a Specification parameter");
+                    + " declares filters, but its query cannot take them; give it a criteria record carrying them");
         }
+        return filter;
+    }
+
+    private static Map<String, Set<Op>> copy(Map<String, Set<Op>> criteria) {
+        Map<String, Set<Op>> filter = new LinkedHashMap<>();
+        criteria.forEach((property, ops) -> filter.put(property, new LinkedHashSet<>(ops)));
         return filter;
     }
 

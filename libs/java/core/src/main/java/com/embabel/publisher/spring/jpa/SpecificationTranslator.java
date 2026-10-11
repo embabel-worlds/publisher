@@ -58,8 +58,10 @@ public final class SpecificationTranslator {
                 List<Order> orders = new ArrayList<>();
                 for (OrderKey key : order) {
                     Path<?> path = translation.path(key.entityPath());
-                    Expression<Integer> isNull = cb.<Integer>selectCase().when(cb.isNull(path), 1).otherwise(0);
-                    orders.add(key.descending() ? cb.desc(isNull) : cb.asc(isNull));
+                    if (key.nullable()) {
+                        Expression<Integer> isNull = cb.<Integer>selectCase().when(cb.isNull(path), 1).otherwise(0);
+                        orders.add(key.descending() ? cb.desc(isNull) : cb.asc(isNull));
+                    }
                     orders.add(key.descending() ? cb.desc(path) : cb.asc(path));
                 }
                 query.orderBy(orders);
@@ -68,8 +70,12 @@ public final class SpecificationTranslator {
         };
     }
 
-    /** One key of an order, on the entity. */
-    public record OrderKey(String entityPath, boolean descending) {
+    /**
+     * One key of an order, on the entity.
+     *
+     * @param nullable whether the attribute can be null; a key that cannot needs no null placement
+     */
+    public record OrderKey(String entityPath, boolean descending, boolean nullable) {
     }
 
     private static final class Translation {

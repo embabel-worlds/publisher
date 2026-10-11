@@ -18,3 +18,12 @@ INSERT INTO invoice (number, customer_id, amount, due_date, status) VALUES
  ('INV-5', 4, 10, DATE '2026-10-01', 'OPEN'),
  ('INV-6', 5, 0.01, DATE '2026-10-02', 'VOID'),
  ('INV-7', 7, 5000, DATE '2026-12-25', 'OPEN');
+INSERT INTO product (id, sku, name, category, price, launched) VALUES
+ (1, 'T-100', 'Hammer', 'TOOLS', 12.50, DATE '2024-01-10'),
+ (2, 'T-200', 'hacksaw', 'TOOLS', 19.99, NULL),
+ (3, 'Y-100', 'Yo-yo', 'TOYS', 3.00, DATE '2025-06-01'),
+ (4, 'Y-200', NULL, 'TOYS', NULL, DATE '2023-03-03'),
+ (5, 'F-100', '100%_Juice', 'FOOD', 2.5, DATE '2025-06-01'),
+ (6, 'F-200', 'Hamburger', NULL, 7.25, DATE '2022-12-12'),
+ (7, 'T-300', 'Hammer drill', 'TOOLS', 99.00, DATE '2025-01-01'),
+ (8, 'X-000', 'Ham', 'FOOD', 12.5, NULL);

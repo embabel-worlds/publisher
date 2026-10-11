@@ -54,6 +54,67 @@ final class EntityPaths {
         return null;
     }
 
+    /**
+     * Whether the attribute at the property's path can be null. It cannot when every step is a
+     * primitive, an {@code @Id}, {@code @Column(nullable = false)}, a required association
+     * ({@code optional = false}, {@code @JoinColumn(nullable = false)}), or Bean Validation's
+     * {@code @NotNull}, {@code @NotBlank} or {@code @NotEmpty}: the application's own claim that no
+     * row lacks it. Annotations are matched by name, so the core needs neither API.
+     */
+    static boolean nullable(TypeModel type, PropertyModel property) {
+        if (type.entity() == null) {
+            return true;
+        }
+        Class<?> current = type.entity();
+        for (String segment : property.entityPath().split("\\.")) {
+            Field field = field(current, segment);
+            if (field == null) {
+                return true;
+            }
+            if (!field.getType().isPrimitive() && !required(field)) {
+                return true;
+            }
+            current = field.getType();
+        }
+        return false;
+    }
+
+    private static boolean required(Field field) {
+        for (java.lang.annotation.Annotation annotation : field.getAnnotations()) {
+            String name = annotation.annotationType().getName();
+            switch (name) {
+                case "jakarta.persistence.Id", "jakarta.persistence.EmbeddedId",
+                     "jakarta.validation.constraints.NotNull", "jakarta.validation.constraints.NotBlank",
+                     "jakarta.validation.constraints.NotEmpty", "javax.validation.constraints.NotNull",
+                     "javax.validation.constraints.NotBlank", "javax.validation.constraints.NotEmpty" -> {
+                    return true;
+                }
+                case "jakarta.persistence.Column", "jakarta.persistence.JoinColumn" -> {
+                    if (Boolean.FALSE.equals(attribute(annotation, "nullable"))) {
+                        return true;
+                    }
+                }
+                case "jakarta.persistence.ManyToOne", "jakarta.persistence.OneToOne" -> {
+                    if (Boolean.FALSE.equals(attribute(annotation, "optional"))) {
+                        return true;
+                    }
+                }
+                default -> {
+                }
+            }
+        }
+        return false;
+    }
+
+    private static Object attribute(java.lang.annotation.Annotation annotation, String name) {
+        try {
+            return annotation.annotationType().getMethod(name).invoke(annotation);
+        }
+        catch (ReflectiveOperationException e) {
+            return null;
+        }
+    }
+
     private static Field field(Class<?> type, String name) {
         for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
             try {
