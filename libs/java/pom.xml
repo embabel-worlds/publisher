@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    The Java publisher libraries. Three published artifacts; this parent only carries the build.
+    Each module imports the Spring Boot BOM of its own line in its own dependencyManagement, so
+    nothing here pins a Spring version: core compiles against the oldest Boot 3 line it supports,
+    and each starter is built and tested on its own line.
+  -->
+  <groupId>com.embabel.publisher</groupId>
+  <artifactId>embabel-publisher-parent</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <name>Embabel Realm Publisher</name>
+  <description>Publish an application to Embabel worlds through the Realm Publishing Protocol.</description>
+  <url>https://github.com/embabel-worlds/publisher</url>
+
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+    </license>
+  </licenses>
+
+  <scm>
+    <url>https://github.com/embabel-worlds/publisher</url>
+  </scm>
+
+  <modules>
+    <module>core</module>
+    <module>spring-boot-starter</module>
+    <module>spring-boot3-starter</module>
+  </modules>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- The protocol's own schema, which every integration test validates responses against. -->
+    <protocol.schema>${project.basedir}/../../../spec/schema/protocol.schema.json</protocol.schema>
+    <json-schema-validator.version>1.5.7</json-schema-validator.version>
+    <junit.version>5.11.4</junit.version>
+    <assertj.version>3.27.3</assertj.version>
+  </properties>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.14.0</version>
+          <configuration>
+            <release>17</release>
+            <parameters>true</parameters>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.5.2</version>
+          <configuration>
+            <includes>
+              <include>**/*Test.java</include>
+              <include>**/*IT.java</include>
+            </includes>
+            <systemPropertyVariables>
+              <protocol.schema>${protocol.schema}</protocol.schema>
+            </systemPropertyVariables>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>build-helper-maven-plugin</artifactId>
+          <version>3.6.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>3.4.2</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-resources-plugin</artifactId>
+          <version>3.3.1</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-install-plugin</artifactId>
+          <version>3.1.3</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+</project>
